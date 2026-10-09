@@ -4,7 +4,10 @@
 # (see https://recipes.vllm.ai/Qwen/Qwen-Image-2.1). Installs into .venv-omni.
 set -e
 cd "$(dirname "$0")/.."
-UV=/data/zhaojd-a/github_codes/uv
+# uv resolution: $UV env var > uv on PATH > local fallback
+if [ -z "$UV" ]; then
+    UV=$(command -v uv || echo /data/zhaojd-a/github_codes/uv)
+fi
 
 if [ ! -d vllm-omni/.git ]; then
     git clone https://github.com/vllm-project/vllm-omni.git

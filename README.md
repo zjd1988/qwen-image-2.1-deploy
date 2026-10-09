@@ -2,8 +2,52 @@
 
 > 面向 agent/维护者的完整复现步骤与边界条件见 [AGENTS.md](./AGENTS.md)。
 
-基于上游仓库 `../Qwen-Image-2.1` 搭建，包含两条已验证的推理路线：
+基于上游仓库 [QwenLM/Qwen-Image-2.1](https://github.com/QwenLM/Qwen-Image-2.1) 搭建，包含两条已验证的推理路线：
 **Diffusers 基线**（官方推荐）和 **vLLM-Omni 在线服务**。
+
+## 全新机器复现步骤
+
+前置条件：NVIDIA GPU（≥24GB 显存）、驱动 ≥ 570（CUDA 12.8，支持 cu129 构建；cu13 需驱动 ≥ 580）、
+Python 3.12、约 45GB 空闲磁盘。国内网络建议 `export HF_ENDPOINT=https://hf-mirror.com`，
+PyPI 用阿里云镜像 `https://mirrors.aliyun.com/pypi/simple`。
+
+```bash
+# 0. 克隆本仓库（仓库根目录即部署目录）并安装 uv
+git clone https://github.com/zjd1988/qwen-image-2.1-deploy.git
+cd qwen-image-2.1-deploy
+curl -LsSf https://astral.sh/uv/install.sh | sh && source ~/.local/bin/env
+
+# 1. 下载模型权重（31GB，含 text_encoder/transformer/vae/scheduler/processor）
+bash scripts/download_model.sh
+
+# 2. Diffusers 基线环境
+uv venv --python 3.12 .venv
+uv pip install --python .venv/bin/python \
+    --index-url https://download.pytorch.org/whl/cu129 torch==2.13.0 torchvision==0.28.0
+uv pip install --python .venv/bin/python \
+    --index-url https://mirrors.aliyun.com/pypi/simple \
+    'transformers>=5.17' accelerate pillow safetensors sentencepiece
+uv pip install --python .venv/bin/python 'git+https://github.com/huggingface/diffusers'
+# 注意：diffusers 必须装 git main，发布版没有 QwenImage21Pipeline
+
+# 3. Diffusers 冒烟验证（1024x1024 / 20 步，约 1 分钟，产出 outputs/verify_t2i.png）
+bash scripts/run_verify.sh
+
+# 4. vLLM-Omni 环境（clone PR#7759 分支 + editable 安装）
+bash scripts/omni_setup.sh
+# 关键修正：PyPI 的 vllm 0.29.0 是 cu13 构建，在驱动 570 上会报
+# "CUDA driver version is insufficient"，必须换装 cu129 wheel：
+uv pip install --python .venv-omni/bin/python \
+    --index-url https://mirrors.aliyun.com/pypi/simple \
+    "vllm @ https://wheels.vllm.ai/98dff2a81d747d1dba01a47f939f48c3526d4206/vllm-0.29.0%2Bcu129-cp38-abi3-manylinux_2_28_x86_64.whl"
+
+# 5. vLLM-Omni 冒烟验证
+bash scripts/omni_serve.sh        # 前台启动，健康检查约 1 分钟
+bash scripts/omni_curl_test.sh    # 另开终端，产出 outputs/verify_omni_t2i.png
+```
+
+驱动版本与 CUDA 标签的对应关系、24GB 显存的边界（omni 上限 ~512px、TP=2 为何无效等）
+见下文及 [AGENTS.md](./AGENTS.md)。
 
 ## 硬件与驱动（本机实测）
 
