@@ -73,6 +73,10 @@ bash scripts/omni_curl_test.sh    # 另开终端；产出 outputs/verify_omni_t2
 - `text_encoder` 不支持 layer 模式（模型未声明 streamable plan）
 - 请求必须带 `num_inference_steps: 40`（服务端默认 50）和 `true_cfg_scale: 1.0`（默认 4.0 会让 DiT 双倍计算）
 - `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` 在此场景反而增加常驻显存，勿加
+- offload 组件只有 `dit` 和 `text_encoder` 两个可选（`vae` 不是合法组件，填了启动直接 ValueError）
+- `/v1/images/edits` 参考图编辑可用（multipart 上传，输出上限同 ~512px），但输入图会先整张过 VAE 编码：
+  大图必须先在客户端缩小（如 768×576）；且服务基线已占 ~23GB，GPU0 上若有其他进程占显存，
+  编辑接口会持续 500 OOM（T2I 不受影响），清出数百 MB 余量后才稳定
 - 停止服务必须杀**监听进程所属整个进程组**（worker 是 spawn 的 `python -c`，按名字 pkill 杀不到）：
   `ss -ltnp | grep 8091` 拿 pid → `kill -9 -$(ps -o pgid= -p <pid> | tr -d ' ')`
 

@@ -28,7 +28,8 @@ deploy/
     ├── run_verify.sh       # Diffusers 冒烟验证：1024x1024 / 20 steps
     ├── omni_setup.sh       # 搭建 vLLM-Omni 环境
     ├── omni_serve.sh       # 启动 omni 在线服务（单卡 + DiT 逐层 offload）
-    └── omni_curl_test.sh   # curl 冒烟：POST /v1/images/generations 512x512
+    ├── omni_curl_test.sh   # curl 冒烟：POST /v1/images/generations 512x512
+    └── omni_edit.sh        # curl 编辑：POST /v1/images/edits（参考图+提示词）
 ```
 
 ## 验证结果（2026-10-08 实测）
@@ -107,3 +108,36 @@ CUDA_VISIBLE_DEVICES=1 .venv/bin/python scripts/edit.py \
 **批量生成**：把多条命令用 `&&` 串成一个脚本顺序跑即可（每张约 90s），
 参考本目录 2026-10-09 生成的 4 张样例：`outputs/edit_red_registration.png`（红底结婚照）、
 `outputs/edit_church.png`（教堂白纱）、`outputs/edit_seaside_{laugh,shy}.png`（海边夕阳两版）。
+
+## vLLM-Omni API 用法（在线服务方式）
+
+omni 服务（`bash scripts/omni_serve.sh` 启动，端口 8091）兼容 OpenAI Images API，
+适合集成到程序里批量/远程调用。24GB 单卡下输出上限约 512px，正式出图请用上面的
+Diffusers 方式；omni 适合快速预览或作为服务接口验证。
+
+**文生图**（`POST /v1/images/generations`，JSON）：
+
+```bash
+bash scripts/omni_curl_test.sh   # 内置冒烟：512x512 茶壶 → outputs/verify_omni_t2i.png
+```
+
+**参考图编辑**（`POST /v1/images/edits`，multipart/form-data）：
+
+```bash
+bash scripts/omni_edit.sh <图片> "<提示词>" [尺寸] [输出] [seed]
+# 例：
+bash scripts/omni_edit.sh ../test.jpg \
+    "同两位老人，中式红底结婚照，女士红色旗袍，男士深色中山装，胸前小红花，囍字元素，暖色柔光棚拍，高清写实。" \
+    512x384 outputs/edit_omni_red.png 42
+```
+
+注意事项（均为实测）：
+
+- 请求必须带 `num_inference_steps: 40` 和 `true_cfg_scale: 1.0`（服务端默认 50 / 4.0，
+  后者会让 DiT 双倍计算），脚本里已内置。
+- **大图输入先缩小**（如 768×576）：服务端会把原图整张过 VAE 编码，2560×1920 原图直接 OOM。
+- **编辑接口对显存余量敏感**：omni 基线已占约 23GB，编辑需额外数百 MB 做输入图 VAE 编码。
+  若 GPU0 上有其他进程占显存（哪怕 ~600MB），`/v1/images/edits` 会持续报
+  `HTTP 500 CUDA out of memory`（T2I 接口不受影响）。清掉占显存的进程或重启 omni 服务后再试。
+- 已验证样例：`outputs/edit_omni_anniversary.png`（512×384，园林月洞门编辑）。
+- 停止服务：`ss -ltnp | grep 8091` 拿 pid → `kill -9 -$(ps -o pgid= -p <pid> | tr -d ' ')`。
