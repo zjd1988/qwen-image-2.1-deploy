@@ -69,3 +69,41 @@ bash scripts/omni_curl_test.sh      # 另开终端验证
 显存充足（≥48GB 单卡或驱动升级到 580+ 后用 FP8）时 omni 的性能优势（prefix KV cache、
 CUDA graph、连续批处理）才能真正发挥。prompt_rewrite/ 提示词改写模型未包含在本部署中，
 如需可参照上游 `prompt_rewrite/README.md` 另行部署。
+
+## 参考图编辑：给照片换场景/服装（如纪念照）
+
+已用一张双人生活照验证过：保持人物五官年龄不变，换成园林/红底棚拍/教堂/海边等场景。
+任何新照片按以下步骤生成即可。
+
+**1. 准备照片**：放到本目录外任意路径（如 `../test.jpg`）。正面、五官清晰、两人无遮挡的效果最好。
+
+**2. 选一张空闲 GPU**：`nvidia-smi` 看哪张卡空闲。若 omni 服务占着 GPU0，就用
+`CUDA_VISIBLE_DEVICES=1` 跑在 GPU1 上（两个环境互不影响）。
+
+**3. 运行编辑命令**（模板）：
+
+```bash
+cd deploy
+CUDA_VISIBLE_DEVICES=1 .venv/bin/python scripts/edit.py \
+    --image ../你的照片.jpg \
+    --prompt "中文提示词：同两位老人，<场景>，<服装>，<表情动作>，<光线>，<风格>。" \
+    --width 1280 --height 960 --steps 40 --seed 42 \
+    --output outputs/结果名.png
+```
+
+参数说明与经验：
+
+- `--prompt`：用中文即可。开头写"同两位老人/同一人，保持五官与年龄特征"能显著稳住人脸一致性；
+  然后按 场景→服装→表情动作→光线→风格 的顺序描述。中西文提示词都支持，不必双语都写。
+- `--width/--height`：不填则沿用输入图尺寸。1280×960（4:3）是兼顾质量与显存的安全值；
+  竖版棚拍可用 960×1280。单卡 24GB + CPU offload 下别超过 ~1.3M 像素。
+- `--steps`：40 是质量/速度平衡点（约 90s/张）；快速预览可降到 20。
+- `--seed`：同一提示词换 seed 即可"多抽几张"挑最满意的，脸部一致性不受 seed 影响。
+- 多参考图：`--image a.jpg --image b.jpg`（最多 10 张），适合"两人各给一张单人照合成合影"。
+
+**4. 查看结果**：输出在 `outputs/` 下，务必打开目检（人脸是否像、手部是否自然、
+提示词元素是否齐全），不满意就改提示词或换 seed 重跑。
+
+**批量生成**：把多条命令用 `&&` 串成一个脚本顺序跑即可（每张约 90s），
+参考本目录 2026-10-09 生成的 4 张样例：`outputs/edit_red_registration.png`（红底结婚照）、
+`outputs/edit_church.png`（教堂白纱）、`outputs/edit_seaside_{laugh,shy}.png`（海边夕阳两版）。
