@@ -1,0 +1,15 @@
+# Python 环境（体积大，按 AGENTS.md 复现步骤重建）
+.venv/
+.venv-omni/
+
+# vllm-omni PR 分支 checkout（439MB，按 omni_setup.sh 重新 clone）
+vllm-omni/
+
+# 模型权重（31GB，scripts/download_model.sh 下载）
+models/
+
+# 验证产物（可重新生成）
+outputs/
+
+__pycache__/
+*.pyc
