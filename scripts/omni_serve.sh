@@ -6,6 +6,10 @@
 set -e
 cd "$(dirname "$0")/.."
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
+# expandable_segments is REQUIRED for /v1/images/edits: without it the
+# allocator fragments and the input-image VAE encode (~400 MB) 500s with OOM
+# even when a few hundred MB are free. T2I works either way.
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 .venv-omni/bin/vllm serve models/Qwen-Image-2.1 --omni --port 8091 \
     --diffusion-offload-config '{"mode": "layer", "components": ["dit"], "pin_memory": false}' \
     --no-enable-cuda-graph-decode \

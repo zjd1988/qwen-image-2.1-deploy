@@ -136,8 +136,8 @@ bash scripts/omni_edit.sh ../test.jpg \
 - 请求必须带 `num_inference_steps: 40` 和 `true_cfg_scale: 1.0`（服务端默认 50 / 4.0，
   后者会让 DiT 双倍计算），脚本里已内置。
 - **大图输入先缩小**（如 768×576）：服务端会把原图整张过 VAE 编码，2560×1920 原图直接 OOM。
-- **编辑接口对显存余量敏感**：omni 基线已占约 23GB，编辑需额外数百 MB 做输入图 VAE 编码。
-  若 GPU0 上有其他进程占显存（哪怕 ~600MB），`/v1/images/edits` 会持续报
-  `HTTP 500 CUDA out of memory`（T2I 接口不受影响）。清掉占显存的进程或重启 omni 服务后再试。
-- 已验证样例：`outputs/edit_omni_anniversary.png`（512×384，园林月洞门编辑）。
+- **编辑接口依赖 `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`**（omni_serve.sh 已内置）：
+  不加时分配器碎片会让编辑请求在还剩几百 MB 空闲时也报 `HTTP 500 CUDA out of memory`。
+  服务长期运行后基线会涨，若编辑开始持续 OOM 且 GPU 上没有其他占用进程，重启 omni 服务即可恢复。
+- 已验证样例：`outputs/edit_omni_anniversary.png`、`outputs/edit_omni_red.png`（均为 512×384）。
 - 停止服务：`ss -ltnp | grep 8091` 拿 pid → `kill -9 -$(ps -o pgid= -p <pid> | tr -d ' ')`。
