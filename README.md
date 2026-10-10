@@ -86,7 +86,7 @@ deploy/
 |---|---|---|
 | Diffusers | 单卡 + `enable_model_cpu_offload()`，1024×1024 / 20 步 | ✅ 45s，`outputs/verify_t2i.png`（霓虹灯牌文字渲染正确） |
 | Diffusers Turbo | 同上，1024×1024 / **固定 8 步** | ✅ 42s，`outputs/verify_turbo_t2i.png`（霓虹灯中英文渲染完美） |
-| Diffusers Turbo 编辑 | 1280×960 / 8 步 + 参考图 | ✅ 41s，`outputs/verify_turbo_edit.png`（人脸一致性良好，与基座 40 步 85s 效果相当） |
+| Diffusers Turbo 编辑 | 1280×960 / 8 步 + 参考图 | ✅ 41s（人脸一致性良好，与基座 40 步 85s 效果相当；样例含真人照片，已删除） |
 | vLLM-Omni | 单卡 + DiT 逐层 offload，512×512 / 40 步 | ✅ 85s，`outputs/verify_omni_t2i.png`（茶壶质感正常） |
 | vLLM-Omni | 1024×1024 | ❌ OOM：TE 常驻 17.5GB + VAE + DiT 流式缓冲后，24GB 不够 1024px 激活值 |
 
@@ -188,9 +188,9 @@ CUDA_VISIBLE_DEVICES=1 .venv/bin/python scripts/edit.py \
 **4. 查看结果**：输出在 `outputs/` 下，务必打开目检（人脸是否像、手部是否自然、
 提示词元素是否齐全），不满意就改提示词或换 seed 重跑。
 
-**批量生成**：把多条命令用 `&&` 串成一个脚本顺序跑即可（每张约 90s），
-参考本目录 2026-10-09 生成的 4 张样例：`outputs/edit_red_registration.png`（红底结婚照）、
-`outputs/edit_church.png`（教堂白纱）、`outputs/edit_seaside_{laugh,shy}.png`（海边夕阳两版）。
+**批量生成**：把多条命令用 `&&` 串成一个脚本顺序跑即可（每张约 90s）。
+2026-10-09 曾用同一流程验证过红底结婚照/教堂白纱/海边夕阳等 5 个场景，人脸一致性均良好
+（样例含真人照片，验证后已删除，不会随仓库分发）。
 
 ## vLLM-Omni API 用法（在线服务方式）
 
@@ -211,7 +211,7 @@ bash scripts/omni_edit.sh <图片> "<提示词>" [尺寸] [输出] [seed]
 # 例：
 bash scripts/omni_edit.sh ../test.jpg \
     "同两位老人，中式红底结婚照，女士红色旗袍，男士深色中山装，胸前小红花，囍字元素，暖色柔光棚拍，高清写实。" \
-    512x384 outputs/edit_omni_red.png 42
+    512x384 outputs/edit_omni.png 42
 ```
 
 注意事项（均为实测）：
@@ -222,5 +222,5 @@ bash scripts/omni_edit.sh ../test.jpg \
 - **编辑接口依赖 `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`**（omni_serve.sh 已内置）：
   不加时分配器碎片会让编辑请求在还剩几百 MB 空闲时也报 `HTTP 500 CUDA out of memory`。
   服务长期运行后基线会涨，若编辑开始持续 OOM 且 GPU 上没有其他占用进程，重启 omni 服务即可恢复。
-- 已验证样例：`outputs/edit_omni_anniversary.png`、`outputs/edit_omni_red.png`（均为 512×384）。
+- 编辑接口已验证可用（样例含真人照片，验证后已删除）。
 - 停止服务：`ss -ltnp | grep 8091` 拿 pid → `kill -9 -$(ps -o pgid= -p <pid> | tr -d ' ')`。

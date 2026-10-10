@@ -91,7 +91,7 @@ bash scripts/omni_curl_test.sh    # 另开终端；产出 outputs/verify_omni_t2
 - 固定 8 步：传 `num_inference_steps` 不生效（实测传 40 仍跑 8 步）
 - 实测（3090 + CPU offload）：1024×1024 T2I 42s、1280×960 编辑 41s，约为基座 40 步的 2×；
   加速比受 offload 搬运限制，常驻 GPU 时收益更大。`use_kv_cache` 在 offload 下无明显提速
-- 样例：`outputs/verify_turbo_t2i.png`、`outputs/verify_turbo_edit.png`
+- 样例：`outputs/verify_turbo_t2i.png`（编辑样例含真人照片，验证后已删除）
 
 ## 验证标准
 
