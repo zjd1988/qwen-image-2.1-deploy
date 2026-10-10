@@ -80,6 +80,19 @@ bash scripts/omni_curl_test.sh    # 另开终端；产出 outputs/verify_omni_t2
 - 停止服务必须杀**监听进程所属整个进程组**（worker 是 spawn 的 `python -c`，按名字 pkill 杀不到）：
   `ss -ltnp | grep 8091` 拿 pid → `kill -9 -$(ps -o pgid= -p <pid> | tr -d ' ')`
 
+## Turbo（Qwen-Image-2.1-Turbo，8 步加速版）
+
+- 下载：`bash scripts/download_model.sh turbo`。**必须 `HF_HUB_DISABLE_XET=1`**（脚本已内置）——
+  Turbo 是 xet 存储仓库，hf_transfer/hf_xet 会绕开 hf-mirror 直连 `cas-*.xethub.hf.co` 报 401/403；
+  且镜像签发的 cas-bridge URL 有效期 1 小时，17.5GB 单文件在 ~3MB/s 下必然过期
+- **TE 与基座逐字节相同**（单文件重打包）：已有基座权重时用 `scripts/merge_te_shards.py`
+  本地合并 4 分片重建（~40s，流式拷贝不占内存），省 17.5GB 下载；产物用法见脚本 docstring
+- diffusers 必须含 PR #14950（pipeline 加载 checkpoint 保存的采样表），用最新 git main
+- 固定 8 步：传 `num_inference_steps` 不生效（实测传 40 仍跑 8 步）
+- 实测（3090 + CPU offload）：1024×1024 T2I 42s、1280×960 编辑 41s，约为基座 40 步的 2×；
+  加速比受 offload 搬运限制，常驻 GPU 时收益更大。`use_kv_cache` 在 offload 下无明显提速
+- 样例：`outputs/verify_turbo_t2i.png`、`outputs/verify_turbo_edit.png`
+
 ## 验证标准
 
 改动后必须通过的检查：

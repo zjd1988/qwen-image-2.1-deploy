@@ -18,7 +18,9 @@ cd qwen-image-2.1-deploy
 curl -LsSf https://astral.sh/uv/install.sh | sh && source ~/.local/bin/env
 
 # 1. 下载模型权重（31GB，含 text_encoder/transformer/vae/scheduler/processor）
-bash scripts/download_model.sh
+bash scripts/download_model.sh          # 基座
+bash scripts/download_model.sh turbo    # 可选：8 步加速版（已有基座时可用
+                                        # scripts/merge_te_shards.py 免去 17.5GB TE 下载）
 
 # 2. Diffusers 基线环境
 uv venv --python 3.12 .venv
@@ -63,10 +65,12 @@ deploy/
 ├── .venv/                  # Diffusers 基线环境 (torch 2.13.0+cu129, transformers 5.19, diffusers git)
 ├── .venv-omni/             # vLLM-Omni 环境 (vllm 0.29.0+cu129 + vllm-omni PR#7759 分支)
 ├── vllm-omni/              # vllm-omni 源码 (Qwen-Image-2.1 支持尚未合入主干)
-├── models/Qwen-Image-2.1/  # 模型权重 31GB（hf-mirror 下载）
+├── models/Qwen-Image-2.1/  # 基座权重 31GB（hf-mirror 下载）
+├── models/Qwen-Image-2.1-Turbo/  # Turbo 8步加速版 31GB（download_model.sh turbo）
 ├── outputs/                # 生成结果与 omni_server.log
 └── scripts/
-    ├── download_model.sh   # 下载权重（HF_ENDPOINT=hf-mirror.com）
+    ├── download_model.sh   # 下载权重（HF_ENDPOINT=hf-mirror.com，参数 base|turbo）
+    ├── merge_te_shards.py  # 用基座 TE 分片本地重建 Turbo 的 TE 单文件（省 17.5GB 下载）
     ├── t2i.py              # Diffusers 文生图（--ratio 支持原生 2K 宽高比）
     ├── edit.py             # Diffusers 图像编辑（--image 可重复，最多 10 张）
     ├── run_verify.sh       # Diffusers 冒烟验证：1024x1024 / 20 steps
@@ -81,8 +85,43 @@ deploy/
 | 路线 | 配置 | 结果 |
 |---|---|---|
 | Diffusers | 单卡 + `enable_model_cpu_offload()`，1024×1024 / 20 步 | ✅ 45s，`outputs/verify_t2i.png`（霓虹灯牌文字渲染正确） |
+| Diffusers Turbo | 同上，1024×1024 / **固定 8 步** | ✅ 42s，`outputs/verify_turbo_t2i.png`（霓虹灯中英文渲染完美） |
+| Diffusers Turbo 编辑 | 1280×960 / 8 步 + 参考图 | ✅ 41s，`outputs/verify_turbo_edit.png`（人脸一致性良好，与基座 40 步 85s 效果相当） |
 | vLLM-Omni | 单卡 + DiT 逐层 offload，512×512 / 40 步 | ✅ 85s，`outputs/verify_omni_t2i.png`（茶壶质感正常） |
 | vLLM-Omni | 1024×1024 | ❌ OOM：TE 常驻 17.5GB + VAE + DiT 流式缓冲后，24GB 不够 1024px 激活值 |
+
+## Qwen-Image-2.1-Turbo（8 步加速版，2026-10-09 发布）
+
+[Qwen/Qwen-Image-2.1-Turbo](https://huggingface.co/Qwen/Qwen-Image-2.1-Turbo)：与基座同架构
+（7B DiT + Qwen3-VL 8B TE + VAE），蒸馏为 8 步采样、CFG=1。用法与基座完全一致，
+只需换 `--model` 并加 `--kv-cache`：
+
+```bash
+bash scripts/download_model.sh turbo     # 下载权重（31GB；xet 仓库必须禁 xet，脚本已内置）
+
+CUDA_VISIBLE_DEVICES=1 .venv/bin/python scripts/t2i.py \
+    --model models/Qwen-Image-2.1-Turbo --kv-cache \
+    --prompt "..." --output outputs/turbo.png
+
+CUDA_VISIBLE_DEVICES=1 .venv/bin/python scripts/edit.py \
+    --model models/Qwen-Image-2.1-Turbo --kv-cache \
+    --image input.jpg --prompt "..." --width 1280 --height 960 \
+    --output outputs/turbo_edit.png
+```
+
+实测结论（RTX 3090 + CPU offload）：
+
+- **固定 8 步**：采样表随 checkpoint 保存并自动加载，传 `num_inference_steps` 不生效（实测传 40 仍跑 8 步）。
+  diffusers 必须升级到含 PR #14950 的最新 git main，否则认不出保存的采样表。
+- **速度**：1024×1024 约 42s（基座 40 步约 85s，约 2× 加速）。offload 场景下单步耗时被
+  权重搬运主导，8 步 vs 40 步的 5× 理论加速体现不出来；常驻 GPU（≥48GB 卡）时差距会更大。
+- **`--kv-cache` 在 offload 下提速不明显**（41.8s vs 42.8s），可开可不开；vLLM-Omni 路线下
+  prefix KV cache 才有意义。
+- **质量**：8 步的文字渲染、编辑人脸一致性与基座 40 步相当（见上表样例）。
+- **文本编码器与基座逐字节相同**：Turbo 的 TE 只是基座 4 分片的单文件重打包
+  （已与官方下载流的前 1.2GB 逐字节比对验证）。若已有基座权重，可用
+  `scripts/merge_te_shards.py` 本地合并出 TE 单文件，省 17.5GB 下载。
+- vLLM-Omni 对 Turbo 的支持未验证（PR #7759 分支为基座适配）。
 
 vLLM-Omni 踩坑记录（均为本机实测结论）：
 
