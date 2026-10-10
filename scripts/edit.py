@@ -17,7 +17,11 @@ def main():
     p.add_argument("--model", default="models/Qwen-Image-2.1")
     p.add_argument("--width", type=int, default=None)
     p.add_argument("--height", type=int, default=None)
-    p.add_argument("--steps", type=int, default=40)
+    p.add_argument("--steps", type=int, default=40,
+                   help="Turbo checkpoints ignore this: their saved 8-step "
+                        "schedule is loaded automatically")
+    p.add_argument("--kv-cache", action="store_true",
+                   help="prefix KV cache across denoising steps (Turbo checkpoints)")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--no-offload", action="store_true")
     args = p.parse_args()
@@ -35,6 +39,8 @@ def main():
     kwargs = {}
     if args.width and args.height:
         kwargs.update(width=args.width, height=args.height)
+    if args.kv_cache:
+        kwargs["use_kv_cache"] = True
 
     t0 = time.time()
     image = pipe(

@@ -32,7 +32,11 @@ def main():
                    help="use a native 2K aspect ratio; overrides --width/--height")
     p.add_argument("--width", type=int, default=1024)
     p.add_argument("--height", type=int, default=1024)
-    p.add_argument("--steps", type=int, default=40)
+    p.add_argument("--steps", type=int, default=40,
+                   help="Turbo checkpoints ignore this: their saved 8-step "
+                        "schedule is loaded automatically")
+    p.add_argument("--kv-cache", action="store_true",
+                   help="prefix KV cache across denoising steps (Turbo checkpoints)")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--no-offload", action="store_true")
     args = p.parse_args()
@@ -48,6 +52,10 @@ def main():
         pipe.enable_model_cpu_offload()
     print(f"[load] {time.time() - t0:.1f}s", flush=True)
 
+    kwargs = {}
+    if args.kv_cache:
+        kwargs["use_kv_cache"] = True
+
     t0 = time.time()
     image = pipe(
         prompt=args.prompt,
@@ -55,6 +63,7 @@ def main():
         height=height,
         num_inference_steps=args.steps,
         generator=torch.Generator("cuda").manual_seed(args.seed),
+        **kwargs,
     ).images[0]
     print(f"[gen] {width}x{height}, {args.steps} steps, {time.time() - t0:.1f}s",
           flush=True)
