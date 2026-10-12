@@ -2,6 +2,13 @@
 
 本目录是 Qwen-Image-2.1 的可复现部署环境。修改本目录任何内容后，请同步更新本文件。
 
+## 目录结构与技能
+
+- `.agents/skills/qwen-image-2-1-prompter/`：第三方提示词专家技能（上游
+  [iamyoki/qwen-image-2.1-skill](https://github.com/iamyoki/qwen-image-2.1-skill)，Apache-2.0），
+  agent 在本目录工作时自动加载，用于把口语化需求重写成 Qwen-Image-2.1 官方规范的提示词。
+  同步上游更新时整体替换该目录即可
+
 ## 环境基线（改动前必须核对）
 
 - GPU: 2 × RTX 3090 24GB（sm_86）；驱动 570.133.07，CUDA 12.8

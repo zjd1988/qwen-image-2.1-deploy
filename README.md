@@ -68,6 +68,7 @@ deploy/
 ├── models/Qwen-Image-2.1/  # 基座权重 31GB（hf-mirror 下载）
 ├── models/Qwen-Image-2.1-Turbo/  # Turbo 8步加速版 31GB（download_model.sh turbo）
 ├── outputs/                # 生成结果与 omni_server.log
+├── .agents/skills/qwen-image-2-1-prompter/  # 提示词专家技能（agent 自动加载）
 └── scripts/
     ├── download_model.sh   # 下载权重（HF_ENDPOINT=hf-mirror.com，参数 base|turbo）
     ├── merge_te_shards.py  # 用基座 TE 分片本地重建 Turbo 的 TE 单文件（省 17.5GB 下载）
@@ -153,6 +154,16 @@ bash scripts/omni_curl_test.sh      # 另开终端验证
 显存充足（≥48GB 单卡或驱动升级到 580+ 后用 FP8）时 omni 的性能优势（prefix KV cache、
 CUDA graph、连续批处理）才能真正发挥。prompt_rewrite/ 提示词改写模型未包含在本部署中，
 如需可参照上游 `prompt_rewrite/README.md` 另行部署。
+
+## Agent 技能：Qwen-Image-2.1 提示词专家
+
+`.agents/skills/qwen-image-2-1-prompter/` 收录了第三方的
+[iamyoki/qwen-image-2.1-skill](https://github.com/iamyoki/qwen-image-2.1-skill)（Apache-2.0），
+把 Qwen 官方系统提示词规范（文生图 8 步客观观察法、编辑双语言分轨与属性解耦）包装成
+agent 技能。在本目录用 Kimi Code / Claude Code 等打开时会被自动加载：让 agent
+"用千问 2.1 出图/改图"时，它会先把口语化需求重写成符合官方规范的高质量提示词，
+再交给 `scripts/t2i.py` / `scripts/edit.py` 执行。仅收录核心的 prompter 技能，
+上游仓库 `.agents/` 下其余与作者个人工作流相关的技能未纳入。
 
 ## 参考图编辑：给照片换场景/服装（如纪念照）
 
