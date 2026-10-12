@@ -124,6 +124,24 @@ CUDA_VISIBLE_DEVICES=1 .venv/bin/python scripts/edit.py \
   `scripts/merge_te_shards.py` 本地合并出 TE 单文件，省 17.5GB 下载。
 - vLLM-Omni 对 Turbo 的支持未验证（PR #7759 分支为基座适配）。
 
+## cache-dit 加速验证结论（2026-10-12）
+
+验证了 [vipshop/cache-dit](https://github.com/vipshop/cache-dit)（DBCache 缓存加速框架）
+对本模型的适用性，结论是**暂不可用**：
+
+- PyPI 最新 1.5.2 与 git main（2026-10-12 核实文件树）都只适配 Qwen-Image **1.0**
+  （`qwen_image.py` / `functor_qwen_image_controlnet.py`），无任何 QwenImage21 相关代码
+- `enable_cache(pipe)` 对 QwenImage21Pipeline 会按类名前缀匹配到 1.0 适配器，然后断言失败：
+  `Transformer class QwenImage21Transformer2DModel not in allowed classes`
+- **无法简单打补丁绕过**：2.1 的 block forward 签名与 1.0 完全不同
+  （1.0 逐块传 `encoder_hidden_states/temb/image_rotary_emb`；2.1 改为块外预计算
+  `modulation/rotary_emb` + 内置 `layer_cache/kv_cache_mode`），1.0 的 patch functor
+  与 2.1 结构不兼容，需要 cache-dit 官方新增专用适配
+- 顺带说明：2.1 transformer 已内置 `kv_cache` 机制（Turbo 的 `use_kv_cache` 走的就是它），
+  官方 Turbo 8 步蒸馏已是当前最有效的加速手段（见上节）
+- 基线数据备查：基座 40 步 1024×1024 vanilla Diffusers = 76.1s（`scripts/bench_cache_dit.py`，
+  等 cache-dit 支持 2.1 后可直接复用该脚本对比）
+
 vLLM-Omni 踩坑记录（均为本机实测结论）：
 
 1. **vllm 必须用 cu129 wheel**：PyPI 默认 vllm 0.29.0 是 cu13 构建，在驱动 570 上 flash-attn 初始化直接报

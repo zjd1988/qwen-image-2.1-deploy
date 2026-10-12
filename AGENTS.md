@@ -99,6 +99,9 @@ bash scripts/omni_curl_test.sh    # 另开终端；产出 outputs/verify_omni_t2
 - 实测（3090 + CPU offload）：1024×1024 T2I 42s、1280×960 编辑 41s，约为基座 40 步的 2×；
   加速比受 offload 搬运限制，常驻 GPU 时收益更大。`use_kv_cache` 在 offload 下无明显提速
 - 样例：`outputs/verify_turbo_t2i.png`（编辑样例含真人照片，验证后已删除）
+- cache-dit（DBCache 加速）：**不可用**（2026-10-12 核实 PyPI 1.5.2 与 git main 均只适配
+  Qwen-Image 1.0；2.1 block 签名完全不同，1.0 patch functor 不兼容，非一行补丁可解。
+  基线备查：基座 40 步 1024×1024 = 76.1s，`scripts/bench_cache_dit.py`）
 
 ## 验证标准
 
